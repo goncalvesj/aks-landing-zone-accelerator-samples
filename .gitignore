@@ -75,3 +75,4 @@ override.tf.json
 .infracost/*
 **/.infracost/*
 
+Scenarios/aks-secure-baseline-external/.azure/*

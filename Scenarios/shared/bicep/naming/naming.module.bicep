@@ -77,9 +77,13 @@ var resourceNames = {
   vmJumpBoxNic: '${naming.resourceTypeAbbreviations.networkInterface}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.virtualMachine)}'
   frontDoor: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.frontDoor)
   
+  applicationGateway4ContainersNsg: '${naming.resourceTypeAbbreviations.networkSecurityGroup}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.applicationGateway4Containers)}'
   postgresNsg: '${naming.resourceTypeAbbreviations.networkSecurityGroup}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.postgres)}'
   appConfiguration: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.appConfiguration)
+  agw4c: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.applicationGateway4Containers)
   aks: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.kubernetesManagedCluster)
+  prometheus: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.prometheus)
+  grafana: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.grafana)
   aksNsg: '${naming.resourceTypeAbbreviations.networkSecurityGroup}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.kubernetesManagedCluster)}'
 }
 

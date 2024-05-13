@@ -33,7 +33,10 @@
         "openAiDeployment": "oaidep",
         "postgres": "pg",
         "appConfiguration": "appcfg",
-        "kubernetesManagedCluster": "aks"
+        "kubernetesManagedCluster": "aks",
+        "applicationGateway4Containers" : "agw4c",
+        "prometheus" : "prm",
+        "grafana" : "grf"
     },
 
     //copied from here: https://github.com/nianton/azure-naming/blob/main/datafiles/regionAbbreviations.json
