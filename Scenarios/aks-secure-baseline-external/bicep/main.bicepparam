@@ -9,11 +9,39 @@ param vnetAddressPrefixes = [
   '10.0.0.0/24'
 ]
 
+param hubGatewaySubnetAddressPrefix = '10.0.0.0/27'
+param hubAzureFirewallSubnetAddressPrefix = '10.0.0.64/26'
+param hubAzureFirewallManagementSubnetAddressPrefix = '10.0.0.128/26'
+param hubBastionSubnetAddressPrefix = '10.0.0.192/26'
+
+// param vnetHubSubnets = [
+//   {
+//     name: 'GatewaySubnet'
+//     properties: {
+//       addressPrefix: '10.0.0.0/27'      
+//     }
+//   }
+//   {
+//     name: 'AzureFirewallSubnet'
+//     properties: {
+//       addressPrefix: '10.0.0.64/26'
+//     }
+//   }
+//   {
+//     name: 'AzureFirewallManagementSubnet'
+//     properties: {
+//       addressPrefix: '10.0.0.128/26'
+//     }
+//   }
+//   {
+//     name: 'AzureBastionSubnet'
+//     properties: {
+//       addressPrefix: '10.0.0.192/26'
+//     }
+//   }
+// ]
+
 // Hub Params
-param gatewaySubnetAddressPrefix = '10.0.0.0/27'
-param azureFirewallSubnetAddressPrefix = '10.0.0.64/26'
-param azureFirewallSubnetManagementAddressPrefix = '10.0.0.128/26'
-param bastionSubnetAddressPrefix = '10.0.0.192/26'
 param deployFirewall = false
 
 // Firewall Rules
@@ -258,9 +286,10 @@ param vmJumpBoxSubnetAddressPrefix = '10.1.2.32/27'
 param spokeVNetAddressPrefixes = [
   '10.1.0.0/16'
 ]
+
 param spokeInfraSubnetAddressPrefix = '10.1.0.0/24'
 param spokePrivateEndpointsSubnetAddressPrefix = '10.1.2.0/27'
-param spokeApplicationGatewaySubnetAddressPrefix = ''//'10.1.3.0/24'
+param spokeJumpboxSubnetAddressPrefix = '10.1.2.32/27'
 param spokeAG4CSubnetAddressPrefix = '10.1.1.0/24'
 
 // Support Services Params

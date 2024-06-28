@@ -48,6 +48,7 @@ var resourceNames = {
   applicationInsights: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.applicationInsights)
   azureFirewall: replace(namingBase, resourceTypeToken, naming.resourceTypeAbbreviations.azureFirewall)  
   azureFirewallPip: '${naming.resourceTypeAbbreviations.publicIpAddress}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.azureFirewall)}'  
+  azureFirewallMip: 'mip-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.azureFirewall)}'  
   bastion: replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.bastion)
   bastionNsg: '${naming.resourceTypeAbbreviations.networkSecurityGroup}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.bastion)}'
   bastionPip: '${naming.resourceTypeAbbreviations.publicIpAddress}-${replace(namingBaseNoWorkloadName, resourceTypeToken, naming.resourceTypeAbbreviations.bastion)}'

@@ -42,10 +42,10 @@ var rgSpokeName = !empty(spokeResourceGroupName)
 
 @description('User-configured naming rules')
 module naming '../../shared/bicep/naming/naming.module.bicep' = {
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   name: take('02-sharedNamingDeployment-${deployment().name}', 64)
   params: {
-    uniqueId: uniqueString(spokeResourceGroup.outputs.resourceId)
+    uniqueId: uniqueString(spokeResourceGroup.id)
     environment: environment
     workloadName: workloadName
     location: location
@@ -61,6 +61,18 @@ param vnetAddressPrefixes array
 
 @description('Enable or disable the creation of the Azure Bastion.')
 param enableBastion bool
+
+@description('CIDR to use for the Azure Bastion subnet.')
+param bastionSubnetAddressPrefix string
+
+@description('CIDR to use for the gatewaySubnet.')
+param gatewaySubnetAddressPrefix string
+
+@description('CIDR to use for the azureFirewallSubnet.')
+param azureFirewallSubnetAddressPrefix string
+
+@description('CIDR to use for the AzureFirewallManagementSubnet, which is required by AzFW Basic.')
+param azureFirewallSubnetManagementAddressPrefix string
 
 @description('The size of the virtual machine to create. See https://learn.microsoft.com/azure/virtual-machines/sizes for more information.')
 param vmSize string
@@ -92,10 +104,7 @@ param applicationRuleCollections array
 param networkRuleCollections array
 param natRuleCollections array
 
-param hubGatewaySubnetAddressPrefix string
-param hubAzureFirewallSubnetAddressPrefix string
-param hubAzureFirewallManagementSubnetAddressPrefix string
-param hubBastionSubnetAddressPrefix string
+param vnetHubSubnets array
 
 // ------------------
 // VARIABLES - HUB
@@ -105,54 +114,34 @@ param hubBastionSubnetAddressPrefix string
 // RESOURCES - HUB
 // ------------------
 
+// resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2020-06-01' = {
+//   name: rgHubName
+//   location: location
+//   tags: tags
+// }
+
 module hubResourceGroup 'br/public:avm/res/resources/resource-group:0.2.3' = {
   name: rgHubName
   params: {
     name: rgHubName
     location: location
-    enableTelemetry: true
+    // enableTelemetry: true
   }
 }
 
-module hubLogAnalytics 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
-  scope: resourceGroup(hubResourceGroup.name)
-  name: take('laHub-${deployment().name}', 64)
-  params: {
-    location: location
-    name: naming.outputs.resourcesNames.logAnalyticsWorkspaceHub
-  }
-}
-
-module vnetHub 'br/public:avm/res/network/virtual-network:0.1.1' = {
+module virtualNetwork 'br/public:avm/res/network/virtual-network:0.1.1' = {
   scope: resourceGroup(hubResourceGroup.name)
   name: take('vnetHub-${deployment().name}', 64)
   params: {
     addressPrefixes: vnetAddressPrefixes
     name: naming.outputs.resourcesNames.vnetHub
     location: location
-    subnets: [
-      {
-        addressPrefix: hubGatewaySubnetAddressPrefix
-        name: 'GatewaySubnet'
-      }
-      {
-        addressPrefix: hubAzureFirewallSubnetAddressPrefix
-        name: 'AzureFirewallSubnet'
-      }
-      {
-        addressPrefix: hubAzureFirewallManagementSubnetAddressPrefix
-        name: 'AzureFirewallManagementSubnet'
-      }
-      {
-        addressPrefix: hubBastionSubnetAddressPrefix
-        name: 'AzureBastionSubnet'
-      }
-    ]
-    enableTelemetry: true
+    subnets: vnetHubSubnets
+    // enableTelemetry: true
   }
 }
 
-module publicIpFW 'br/public:avm/res/network/public-ip-address:0.3.1' = {
+module publicIpFW 'br/public:avm/res/network/public-ip-address:0.3.1' = if (deployFirewall) {
   scope: resourceGroup(hubResourceGroup.name)
   name: take('azfw-pip-${deployment().name}', 64)
   params: {
@@ -166,7 +155,7 @@ module publicIpFW 'br/public:avm/res/network/public-ip-address:0.3.1' = {
   }
 }
 
-module publicIpFWMgmt 'br/public:avm/res/network/public-ip-address:0.3.1' = {
+module publicIpFWMgmt 'br/public:avm/res/network/public-ip-address:0.3.1' = if (deployFirewall) {
   scope: resourceGroup(hubResourceGroup.name)
   name: take('azfw-mip-${deployment().name}', 64)
   params: {
@@ -186,7 +175,7 @@ module azureFirewall 'br/public:avm/res/network/azure-firewall:0.1.1' = if (depl
   params: {
     name: naming.outputs.resourcesNames.azureFirewall
     location: location
-    virtualNetworkResourceId: vnetHub.outputs.resourceId
+    virtualNetworkResourceId: virtualNetwork.outputs.resourceId
     zones: []
     publicIPResourceID: publicIpFW.outputs.resourceId
     managementIPResourceID: publicIpFWMgmt.outputs.resourceId
@@ -196,31 +185,29 @@ module azureFirewall 'br/public:avm/res/network/azure-firewall:0.1.1' = if (depl
   }
 }
 
-// Bastion Host
-module publicipbastion 'br/public:avm/res/network/public-ip-address:0.3.1' = {
-  scope: resourceGroup(hubResourceGroup.name)
-  name: take('bastip-${deployment().name}', 64)
-  params: {
-    name: naming.outputs.resourcesNames.bastionPip
-    location: location
-    zones: []
-    publicIPAllocationMethod: 'Static'
-    skuName: 'Standard'
-    skuTier: 'Regional'
-    enableTelemetry: true
-  }
-}
-module bastionHost 'br/public:avm/res/network/bastion-host:0.1.1' = if (enableBastion) {
-  scope: resourceGroup(hubResourceGroup.name)
-  name: take('bastion-${deployment().name}', 64)
-  params: {
-    name: naming.outputs.resourcesNames.bastion
-    vNetId: vnetHub.outputs.resourceId
-    bastionSubnetPublicIpResourceId: publicipbastion.outputs.resourceId
-    location: location
-    enableTelemetry: true
-  }
-}
+// Add Bastion Host here
+
+// module hub 'modules/01-hub/deploy.hub.bicep' = {
+//   name: take('hub-${deployment().name}-deployment', 64)
+//   params: {
+//     location: location
+//     tags: tags
+//     hubResourceGroupName: rgHubName
+//     environment: environment
+//     workloadName: workloadName
+//     vnetAddressPrefixes: vnetAddressPrefixes
+//     enableBastion: enableBastion
+//     bastionSubnetAddressPrefix: bastionSubnetAddressPrefix
+//     azureFirewallSubnetAddressPrefix: azureFirewallSubnetAddressPrefix
+//     azureFirewallSubnetManagementAddressPrefix: azureFirewallSubnetManagementAddressPrefix
+//     gatewaySubnetAddressPrefix: gatewaySubnetAddressPrefix
+//     spokeInfraSubnetAddressPrefix: spokeInfraSubnetAddressPrefix
+//     applicationRuleCollections: applicationRuleCollections
+//     natRuleCollections: natRuleCollections
+//     networkRules: networkRuleCollections
+//     deployFirewall: deployFirewall
+//   }
+// }
 
 // ------------------
 // PARAMETERS - SPOKE
@@ -239,7 +226,7 @@ param spokeInfraSubnetAddressPrefix string
 param spokePrivateEndpointsSubnetAddressPrefix string
 
 @description('CIDR of the Spoke Application Gateway Subnet.')
-param spokeJumpboxSubnetAddressPrefix string
+param spokeApplicationGatewaySubnetAddressPrefix string
 
 param spokeAG4CSubnetAddressPrefix string
 
@@ -254,113 +241,36 @@ param deployAzurePolicies bool = true
 // RESOURCES - SPOKE
 // ------------------
 
-module spokeResourceGroup 'br/public:avm/res/resources/resource-group:0.2.3' = {
+resource spokeResourceGroup 'Microsoft.Resources/resourceGroups@2020-06-01' = {
   name: rgSpokeName
-  params: {
-    name: rgSpokeName
-    location: location
-    enableTelemetry: true
-  }
+  location: location
+  tags: tags
 }
 
-module spokeLogAnalytics 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
-  scope: resourceGroup(spokeResourceGroup.name)
-  name: take('laSpoke-${deployment().name}', 64)
+module spoke 'modules/02-spoke/deploy.spoke.bicep' = {
+  name: take('spoke-${deployment().name}-deployment', 64)
   params: {
+    spokeResourceGroupName: spokeResourceGroup.name
     location: location
-    name: naming.outputs.resourcesNames.logAnalyticsWorkspaceSpoke
+    tags: tags
+    environment: environment
+    workloadName: workloadName
+    hubVNetId: virtualNetwork.outputs.resourceId//hub.outputs.hubVNetId
+    spokeAG4CSubnetAddressPrefix: spokeAG4CSubnetAddressPrefix
+    spokeApplicationGatewaySubnetAddressPrefix: spokeApplicationGatewaySubnetAddressPrefix
+    spokeInfraSubnetAddressPrefix: spokeInfraSubnetAddressPrefix
+    spokePrivateEndpointsSubnetAddressPrefix: spokePrivateEndpointsSubnetAddressPrefix
+    spokeVNetAddressPrefixes: spokeVNetAddressPrefixes
+    networkApplianceIpAddress: azureFirewall.outputs.privateIp//hub.outputs.networkApplianceIpAddress
+    vmSize: vmSize
+    vmAdminUsername: vmAdminUsername
+    vmAdminPassword: vmAdminPassword
+    vmLinuxSshAuthorizedKeys: vmLinuxSshAuthorizedKeys
+    vmJumpboxOSType: vmJumpboxOSType
+    vmJumpBoxSubnetAddressPrefix: vmJumpBoxSubnetAddressPrefix
+    deployAzurePolicies: deployAzurePolicies
   }
 }
-
-module nsgApplicationGateway4Containers 'br/public:avm/res/network/network-security-group:0.2.0' = {
-  scope: resourceGroup(spokeResourceGroup.name)
-  name: take('nsgApplicationGateway4Containers-${deployment().name}', 64)
-  params: {
-    name: naming.outputs.resourcesNames.applicationGateway4ContainersNsg
-    location: location
-    enableTelemetry: true
-  }
-}
-
-module nsgAks 'br/public:avm/res/network/network-security-group:0.2.0' = {
-  scope: resourceGroup(spokeResourceGroup.name)
-  name: take('nsgAks-${deployment().name}', 64)
-  params: {
-    name: naming.outputs.resourcesNames.aksNsg
-    location: location
-    enableTelemetry: true
-  }
-}
-
-module nsgPep 'br/public:avm/res/network/network-security-group:0.2.0' = {
-  scope: resourceGroup(spokeResourceGroup.name)
-  name: take('nsgPep-${deployment().name}', 64)
-  params: {
-    name: naming.outputs.resourcesNames.pepNsg
-    location: location
-    enableTelemetry: true
-  }
-}
-
-module spokeVnet 'br/public:avm/res/network/virtual-network:0.1.1' = {
-  scope: resourceGroup(spokeResourceGroup.name)
-  name: take('vnetSpoke-${deployment().name}', 64)
-  params: {
-    addressPrefixes: spokeVNetAddressPrefixes
-    name: naming.outputs.resourcesNames.vnetSpoke
-    location: location
-    subnets: [
-      {
-        name: 'snet-infra'
-        addressPrefix: spokeInfraSubnetAddressPrefix
-        networkSecurityGroupResourceId: nsgAks.outputs.resourceId
-      }
-      {
-        name: 'snet-pep'
-        addressPrefix: spokePrivateEndpointsSubnetAddressPrefix
-        networkSecurityGroupResourceId: nsgPep.outputs.resourceId
-      }
-      {
-        name: 'snet-alb'
-        addressPrefix: spokeAG4CSubnetAddressPrefix
-        networkSecurityGroupResourceId: nsgApplicationGateway4Containers.outputs.resourceId
-        delegations: [
-          {
-            name: 'albdelegation'
-            properties: {
-              serviceName: 'Microsoft.ServiceNetworking/trafficControllers'
-            }
-          }
-        ]
-      }
-      {
-        name: 'snet-jumpbox'
-        addressPrefix: spokeJumpboxSubnetAddressPrefix
-        // Add NSG
-      }
-    ]
-    peerings: [
-      {
-        allowForwardedTraffic: true
-        allowGatewayTransit: false
-        allowVirtualNetworkAccess: true
-        remotePeeringAllowForwardedTraffic: false
-        remotePeeringAllowVirtualNetworkAccess: true
-        remotePeeringEnabled: true
-        remotePeeringName: 'hub-to-spoke'
-        remoteVirtualNetworkId: vnetHub.outputs.resourceId
-        useRemoteGateways: false
-      }
-    ]
-    enableTelemetry: true
-  }
-}
-
-// Add Route Table
-
-// Add Jumpbox VM
-
-// Add Azure Policies
 
 // ------------------
 // PARAMETERS - SUPPORTING RESOURCES
@@ -377,14 +287,14 @@ param deployRedisCache bool = false
 
 module appInsights 'br/public:avm/res/insights/component:0.3.0' = if (enableApplicationInsights) {
   name: take('appinsights-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     name: naming.outputs.resourcesNames.applicationInsights
-    workspaceResourceId: spokeLogAnalytics.outputs.resourceId
+    workspaceResourceId: spoke.outputs.logAnalyticsWorkspaceId
   }
 }
 
-module cachePrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = {
+module cachePrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = if (deployRedisCache) {
   name: take('redisdnszone-${deployment().name}-deployment', 64)
   scope: resourceGroup(hubResourceGroup.name)
   params: {
@@ -392,7 +302,7 @@ module cachePrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = 
     virtualNetworkLinks: [
       {
         registrationEnabled: false
-        virtualNetworkResourceId: spokeVnet.outputs.resourceId
+        virtualNetworkResourceId: spoke.outputs.spokeVNetId
       }
     ]
   }
@@ -400,7 +310,7 @@ module cachePrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = 
 
 module redis 'br/public:avm/res/cache/redis:0.3.2' = if (deployRedisCache) {
   name: take('redis-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     name: naming.outputs.resourcesNames.redisCache
     location: location
@@ -412,7 +322,7 @@ module redis 'br/public:avm/res/cache/redis:0.3.2' = if (deployRedisCache) {
     publicNetworkAccess: 'Disabled'
     privateEndpoints: [
       {
-        subnetResourceId: spokeVnet.outputs.subnetResourceIds[1]
+        subnetResourceId: spoke.outputs.spokePrivateEndpointsSubnetId
         privateDnsZoneGroupName: cachePrivateDnsZone.outputs.name
         privateDnsZoneResourceIds: [
           cachePrivateDnsZone.outputs.resourceId
@@ -431,7 +341,7 @@ module kvPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = {
     virtualNetworkLinks: [
       {
         registrationEnabled: false
-        virtualNetworkResourceId: spokeVnet.outputs.resourceId
+        virtualNetworkResourceId: spoke.outputs.spokeVNetId
       }
     ]
   }
@@ -439,7 +349,7 @@ module kvPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = {
 
 module keyvault 'br/public:avm/res/key-vault/vault:0.5.1' = {
   name: take('keyvault-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     name: naming.outputs.resourcesNames.keyVault
     location: location
@@ -452,7 +362,7 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.5.1' = {
     enableRbacAuthorization: true
     privateEndpoints: [
       {
-        subnetResourceId: spokeVnet.outputs.subnetResourceIds[1] //Location of the subnet for the Private Endpoint
+        subnetResourceId: spoke.outputs.spokePrivateEndpointsSubnetId
         privateDnsZoneGroupName: kvPrivateDnsZone.outputs.name
         privateDnsZoneResourceIds: [
           kvPrivateDnsZone.outputs.resourceId
@@ -462,7 +372,7 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.5.1' = {
     ]
     diagnosticSettings: [
       {
-        workspaceResourceId: spokeLogAnalytics.outputs.resourceId
+        workspaceResourceId: spoke.outputs.logAnalyticsWorkspaceId
       }
     ]
     roleAssignments: [
@@ -476,42 +386,16 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.5.1' = {
 }
 
 // Switch to Premium SKU for Private Endpoints
-module acrPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.2.5' = {
-  name: take('acrdnszone-${deployment().name}-deployment', 64)
-  scope: resourceGroup(hubResourceGroup.name)
-  params: {
-    name: 'privatelink.azurecr.io'
-    virtualNetworkLinks: [
-      {
-        registrationEnabled: false
-        virtualNetworkResourceId: spokeVnet.outputs.resourceId
-      }
-    ]
-  }
-}
-
 module registry 'br/public:avm/res/container-registry/registry:0.1.1' = if (deployAcr) {
   name: take('acr-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     name: naming.outputs.resourcesNames.containerRegistry
     acrAdminUserEnabled: false
-    acrSku: (environment == 'dev') ? 'Basic' : 'Premium'
-    privateEndpoints: (environment == 'dev')
-      ? []
-      : [
-          {
-            subnetResourceId: spokeVnet.outputs.subnetResourceIds[1]
-            privateDnsZoneGroupName: acrPrivateDnsZone.outputs.name
-            privateDnsZoneResourceIds: [
-              acrPrivateDnsZone.outputs.resourceId
-            ]
-            name: naming.outputs.resourcesNames.containerRegistryPep
-          }
-        ]
+    acrSku: 'Basic'
     diagnosticSettings: [
       {
-        workspaceResourceId: spokeLogAnalytics.outputs.resourceId
+        workspaceResourceId: spoke.outputs.logAnalyticsWorkspaceId
       }
     ]
     roleAssignments: [
@@ -524,6 +408,10 @@ module registry 'br/public:avm/res/container-registry/registry:0.1.1' = if (depl
     location: location
     softDeletePolicyDays: 7
     softDeletePolicyStatus: 'disabled'
+    tags: {
+      Environment: 'Non-Prod'
+      Role: 'DeploymentValidation'
+    }
   }
 }
 
@@ -544,7 +432,7 @@ param aadGroupdIds array
 
 module aks 'modules/04-aks-environment/deploy.aks.bicep' = {
   name: take('aksEnvironment-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     aadGroupdIds: aadGroupdIds
     autoScalingProfile: {}
@@ -553,10 +441,10 @@ module aks 'modules/04-aks-environment/deploy.aks.bicep' = {
     enableAutoScaling: true
     kubernetesVersion: kubernetesVersion
     location: location
-    logworkspaceid: spokeLogAnalytics.outputs.resourceId
+    logworkspaceid: spoke.outputs.logAnalyticsWorkspaceId
     networkPlugin: 'azure'
-    subnetId: spokeVnet.outputs.subnetResourceIds[0]
-    useRouteTable: deployFirewall
+    subnetId: spoke.outputs.spokeInfraSubnetId
+    useRouteTable: (!empty(hub.outputs.networkApplianceIpAddress)) ? true : false
     enablePrivateCluster: false
   }
 }
@@ -575,14 +463,10 @@ module aks 'modules/04-aks-environment/deploy.aks.bicep' = {
 
 module agw4c 'modules/06-application-gateway/deploy.appgw-container.bicep' = {
   name: take('agw4c-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     location: location
     name: naming.outputs.resourcesNames.agw4c
-    aksNodeRg: aks.outputs.aksManagedRG
-    aksIssuerURL: aks.outputs.issuerURL
-    albSubnetId: spokeVnet.outputs.subnetResourceIds[2]
-    spokeResourceGroup: spokeResourceGroup.name
   }
 }
 
@@ -600,10 +484,10 @@ module agw4c 'modules/06-application-gateway/deploy.appgw-container.bicep' = {
 
 module prometheus 'modules//05-monitoring/deploy.prometheus.bicep' = {
   name: take('prometheus-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     location: location
-    clusterName: naming.outputs.resourcesNames.aks
+    clusterName: naming.outputs.resourcesNames.aks    
     publicNetworkAccess: 'Enabled'
     name: naming.outputs.resourcesNames.prometheus
     tags: tags
@@ -624,14 +508,13 @@ module prometheus 'modules//05-monitoring/deploy.prometheus.bicep' = {
 
 module grafana 'modules//05-monitoring/deploy.grafana.bicep' = {
   name: take('grafana-${deployment().name}-deployment', 64)
-  scope: resourceGroup(spokeResourceGroup.name)
+  scope: spokeResourceGroup
   params: {
     name: naming.outputs.resourcesNames.grafana
     prometheusName: naming.outputs.resourcesNames.prometheus
     tags: tags
-    skuName: (environment == 'dev') ? 'Essential' : 'Standard'
+    skuName: 'Essential'
     // Add an Entra Group to allow access to Grafana
-    // Same group that is used for AKS
-    userId: '7501bb3d-32d6-4b19-b298-271c409a3459'
+    //userId: xxx
   }
 }

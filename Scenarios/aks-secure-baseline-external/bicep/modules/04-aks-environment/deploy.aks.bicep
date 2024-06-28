@@ -54,7 +54,7 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-p
 
 // TODO: Add support subnet separation for control plane and node pools
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
   name: clusterName
   location: location
   identity: {
@@ -215,3 +215,4 @@ output aksUMIId string = identity.id
 output aksUMIPrincipalId string = identity.properties.principalId
 // output ingressIdentity string = aksCluster.properties.addonProfiles.ingressApplicationGateway.identity.objectId
 output keyvaultaddonIdentity string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+output issuerURL string = aksCluster.properties.oidcIssuerProfile.issuerURL
